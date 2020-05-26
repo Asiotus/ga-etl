@@ -7,6 +7,12 @@
 """
 
 from dependencies.spark import start_spark
+import time
+from datetime import datetime
+import pytz
+from pyspark import SparkContext
+from pyspark.sql import SQLContext
+
 
 def main():
     """Main ETL script definition.
@@ -17,17 +23,54 @@ def main():
     spark, log, config = start_spark(
         app_name='analysis',
         files=['configs/etl_config.json'])
-    # log that main ETL job is starting
-    log.warn('etl_job is up-and-running')
+    log.warn('***analysis is up-and-running***')
+    # load data
+    df = load(spark, config["start_date"], config["stop_date"], config["folder"])
+    log.warn('***data loaded***')
+    # visit per hour
+    if config["daily"]:
+        visit_per_hour(df, config["stop_date"])
 
-    # # execute ETL pipeline
-    # data = extract_data(spark)
-    # data_transformed = transform_data(data, config['steps_per_floor'])
-    # load_data(data_transformed)
+    return None
 
-    # # log the success and terminate Spark application
-    # log.warn('test_etl_job is finished')
-    # spark.stop()
+def load(spark, startDate, stopDate, folder):
+    import os
+    from os import listdir
+    from os.path import isfile, join
+    
+    directory = os.getcwd()+ "/" + folder
+    fileList = listdir(directory)
+    fileList = [f for f in fileList if 'json' in f]
+
+    selectedDate = [f for f in fileList if (f >= 'ga_sessions_'+startDate+'.json' and f <= 'ga_sessions_'+stopDate+'.json')]
+    selectedDatepaths = [directory + f for f in selectedDate]
+
+    df = spark.read.format('json') \
+    .option("inferSchema", True) \
+    .option("maxColumns", "540000") \
+    .option("header", True) \
+    .option("sep", "\t") \
+    .load(selectedDatepaths)
+
+    return df
+
+# visit per hour
+def extract_visitId_time_hour(x):
+        t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
+        return (x['fullVisitorId'], t.strftime("%Y%m%d%H"))
+def visit_per_hour(df, stopDate):   
+    visitGroupByHour = df.rdd.map(extract_visitId_time_hour)
+    # select the last day
+    visitGroupByHour = visitGroupByHour.filter(lambda x: x[1][:-2] == stopDate)
+    # count visits
+    visitHour = visitGroupByHour.map(lambda x: (x[1], 1))
+    visitHour = visitHour.reduceByKey(lambda x, y: x + y)
+    visitHour = visitHour.sortByKey(ascending=True)
+    # save csv
+    filename = 'out/visit_per_hour' + stopDate
+    visitHour_df = visitHour.toDF(['time', 'visits'])
+    visitHour_df.coalesce(1).write.format('csv').options(header='true').save(filename)
+
     return None
 
 if __name__ == '__main__': 
