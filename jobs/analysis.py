@@ -34,6 +34,8 @@ def main():
     # monthly tasks
     if config["monthly"]:
         hourly_visit_pattern(df, config["stop_date"])
+        popular_os(df, config["stop_date"])
+        popular_browser(df, config["stop_date"])
 
     return None
 
@@ -109,6 +111,43 @@ def hourly_visit_pattern(df, stopDate):
     visitPatternHour_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
     return None
+
+# popular os
+def extract_time_device(x):
+    t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
+    return (t.strftime("%Y%m%d%H%M%S"), [x['device'].browser, x['device'].deviceCategory, x['device'].isMobile, x['device'].operatingSystem])
+def popular_os(df, stopDate):
+    deviceExtracted = df.rdd.map(extract_time_device)
+    visitGroupByOS = deviceExtracted.map(lambda x: (x[0], x[1][3]))
+    # group by day
+    visitGroupByOSD = visitGroupByOS.map(lambda x:(x[0][:8], x[1]))
+    visitGroupByOSD = visitGroupByOSD.map(lambda x: ((x[0],x[1]), 1)) \
+                        .reduceByKey(lambda x, y: x + y)
+    visitGroupByOSD = visitGroupByOSD.sortByKey(ascending=True)
+    visitGroupByOSD = visitGroupByOSD.map(lambda x: (x[0][0], x[0][1], x[1]))
+    # save csv
+    filename = 'out/popular_os' + stopDate[:-2]
+    visitGroupByOSD_df = visitGroupByOSD.toDF(['time', 'os', 'count'])
+    visitGroupByOSD_df.coalesce(1).write.format('csv').options(header='true').save(filename)
+
+    return None
+
+def popular_browser(df, stopDate):
+    deviceExtracted = df.rdd.map(extract_time_device)
+    visitGroupByBrowser = deviceExtracted.map(lambda x: (x[0], x[1][0]))
+    # group by day
+    visitGroupByBrowserD = visitGroupByBrowser.map(lambda x:(x[0][:8], x[1]))
+    visitGroupByBrowserD = visitGroupByBrowserD.map(lambda x: ((x[0],x[1]), 1)) \
+                            .reduceByKey(lambda x, y: x + y)
+    visitGroupByBrowserD = visitGroupByBrowserD.sortByKey(ascending=True)
+    visitGroupByBrowserD = visitGroupByBrowserD.map(lambda x: (x[0][0], x[0][1], x[1]))
+    # save csv
+    filename = 'out/popular_browser' + stopDate[:-2]
+    visitGroupByBrowserD_df = visitGroupByBrowserD.toDF(['time', 'browser', 'count'])
+    visitGroupByBrowserD_df.coalesce(1).write.format('csv').options(header='true').save(filename)
+
+    return None
+
 
 if __name__ == '__main__': 
     main()
