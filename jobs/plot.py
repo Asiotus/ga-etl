@@ -5,6 +5,8 @@ import os
 
 def main():
     plot_visit_per_hour("20160803")
+    plot_visitor_per_hour("20160803")
+    plot_hourly_visit_pattern("20160803")
     return None
 
 def read(func, date):
@@ -25,6 +27,20 @@ def plot_visit_per_hour(date):
     plt.savefig(directory)
     return None
 
+def plot_visitor_per_hour(date):
+    df = read("visitor_per_hour", date)
+    df['time'] = pd.to_datetime(df['time'], format='%Y%m%d%H', errors='coerce')
+    df.plot(x ='time', y='visitors', kind = 'line')
+    directory = os.getcwd()+ "/fig/" + "visitor_per_hour" + date
+    plt.savefig(directory)
+    return None
+
+def plot_hourly_visit_pattern(date):
+    df = read("hourly_visit_pattern", date[:-2])
+    df.plot(x ='time', y='visits', kind = 'bar')
+    directory = os.getcwd()+ "/fig/" + "hourly_visit_pattern" + date[:-2]
+    plt.savefig(directory)
+    return None
 
 if __name__ == "__main__":
     main()
