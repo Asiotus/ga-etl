@@ -11,6 +11,7 @@ from os import environ, listdir, path
 import json
 from pyspark import SparkFiles
 from pyspark.sql import SparkSession
+from pyspark import SparkContext
 
 from dependencies import logging
 
@@ -72,7 +73,6 @@ def start_spark(app_name='my_spark_app', master='local[*]', jar_packages=[],
             .builder
             .master(master)
             .appName(app_name))
-
         # create Spark JAR packages string
         spark_jars_packages = ','.join(list(jar_packages))
         spark_builder.config('spark.jars.packages', spark_jars_packages)
@@ -83,7 +83,9 @@ def start_spark(app_name='my_spark_app', master='local[*]', jar_packages=[],
         # add other config params
         for key, val in spark_config.items():
             spark_builder.config(key, val)
-
+    # create sc
+    sc = SparkContext.getOrCreate()
+    
     # create session and retrieve Spark logger object
     spark_sess = spark_builder.getOrCreate()
     spark_logger = logging.Log4j(spark_sess)
@@ -103,4 +105,4 @@ def start_spark(app_name='my_spark_app', master='local[*]', jar_packages=[],
         spark_logger.warn('no config file found')
         config_dict = None
 
-    return spark_sess, spark_logger, config_dict
+    return spark_sess, spark_logger, config_dict, sc

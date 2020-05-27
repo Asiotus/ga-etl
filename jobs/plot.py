@@ -10,7 +10,9 @@ def main():
     plot_popular_os("20160803")
     plot_popular_browser("20160803")
     plot_country_dist("20160803")
-    average_visit_duration("20160803")
+    plot_average_visit_duration("20160803")
+    top_popular_page("20160803")
+    plot_referral_path("20160803")
     return None
 
 def read(func, date):
@@ -92,7 +94,7 @@ def plot_country_dist(date):
     plt.clf()
     return None
 
-def average_visit_duration(date):
+def plot_average_visit_duration(date):
     df = read("average_visit_duration", date[:-2])
     df['time'] = pd.to_datetime(df['time'], format='%Y%m%d', errors='coerce')
     df.plot(x ='time', y='duration', kind = 'line')
@@ -100,6 +102,43 @@ def average_visit_duration(date):
     plt.savefig(directory)
     plt.clf()
     return None
+
+def top_popular_page(date):
+    hitPagePd = read("popular_page", date[:-2])
+    hitPagePd['date'] = pd.to_datetime(hitPagePd['date'], format='%Y%m%d', errors='coerce')
+    dateList = hitPagePd['date'].unique()
+    dateList = np.sort(dateList)
+    pageDailyRank = pd.DataFrame()
+    rank = [i+1 for i in range(10)]
+    for d in dateList:
+        top10 = hitPagePd[hitPagePd['date'] == d]
+        top10 = top10.sort_values(by='count', ascending=False)
+        top10 = top10[:10].reset_index(drop=True)
+        top10['rank'] = rank
+        pageDailyRank = pageDailyRank.append(top10)
+    directory = os.getcwd()+ "/fig/" + "top_popular_page" + date[:-2] + ".csv"
+    pageDailyRank.to_csv(directory)
+    return None
+
+def plot_referral_path(date):
+    import json
+    filepath = 'out/referral_path' + date + ".json"
+    with open (filepath, 'r') as fin:
+        referraljson = json.load(fin)
+ 
+    import pyecharts.options as opts
+    from pyecharts.charts import Sankey
+    plottitle = "top referral pages" + date
+    Sankey() \
+    .add(
+        "sankey",
+        nodes=referraljson["nodes"],
+        links=referraljson["links"],
+        linestyle_opt=opts.LineStyleOpts(opacity=0.2, curve=0.5, color="source"),
+        label_opts=opts.LabelOpts(position="right"),
+    ) \
+    .set_global_opts(title_opts=opts.TitleOpts(title=plottitle)) \
+    .render("fig/top_referral_pages.html")
 
 if __name__ == "__main__":
     main()

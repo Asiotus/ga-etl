@@ -20,7 +20,7 @@ def main():
     :return: None
     """
     # start Spark application and get Spark session, logger and config
-    spark, log, config = start_spark(
+    spark, log, config, sc = start_spark(
         app_name='analysis',
         files=['configs/etl_config.json'])
     log.warn('***analysis is up-and-running***')
@@ -31,6 +31,7 @@ def main():
     if config["daily"]:
         visit_per_hour(df, config["stop_date"])
         visitor_per_hour(df, config["stop_date"])
+        referral_path(df, sc, config["stop_date"])
     # monthly tasks
     if config["monthly"]:
         hourly_visit_pattern(df, config["stop_date"])
@@ -38,6 +39,8 @@ def main():
         popular_browser(df, config["stop_date"])
         country_dist(df, config["stop_date"])
         average_visit_duration(df, config["stop_date"])
+        popular_page(df, config["stop_date"])
+        
 
     return None
 
@@ -179,6 +182,102 @@ def average_visit_duration(df, stopDate):
     filename = 'out/average_visit_duration' + stopDate[:-2]
     duration_df = duration.toDF(['time', 'duration'])
     duration_df.coalesce(1).write.format('csv').options(header='true').save(filename)
+
+    return None
+
+# popular page
+def extract_hits(x):
+    t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
+    return (t.strftime("%Y%m%d%H"), (x['hits']))
+def popular_page(df, stopDate):
+    hitPage = df.rdd.map(extract_hits)
+    hitPage = hitPage.flatMap(lambda x: [(x[0], h.page.pagePath) for h in x[1]])
+    # page count grouped by day
+    hitPage = hitPage.map(lambda x: ((x[0][:-2], x[1]), 1)) \
+                .reduceByKey(lambda x, y: x + y)
+    hitPage = hitPage.map(lambda x: (x[0][0], x[0][1], x[1]))
+    # save csv
+    filename = 'out/popular_page' + stopDate[:-2]
+    hitPage_df = hitPage.toDF(['date', 'pagePath', 'count'])
+    hitPage_df.coalesce(1).write.format('csv').options(header='true').save(filename)
+
+    return None
+
+# referral path
+def extract_referralPath(x):
+    t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
+    if x['trafficSource'].referralPath != None and x['trafficSource'].referralPath != "/":
+        s = str(x['trafficSource'].source)+str(x['trafficSource'].referralPath)
+    else:
+        s = str(x['trafficSource'].source)
+    return (t.strftime("%Y%m%d"), x['hits'][0].page.pagePath, s)
+def referralPageFilter(x, topSource, topTarget):
+    isIn = False;
+    for s in topSource.value:
+        if x[1] == s[0]:
+            isIn = True
+            os = x[1]
+            break
+    if not isIn:
+        os = 'other source'
+    isIn = False;
+    for t in topTarget.value:
+        if x[0] == t[0]:
+            isIn = True
+            ot = x[0]
+            break
+    if not isIn:
+        ot = 'other target'
+    return (os, ot, x[2])
+def referral_path(df, sc, stopDate):
+    referralPage = df.rdd.map(extract_referralPath)
+    referralPageDay = referralPage.map(lambda x: ((x[0], x[1], x[2]), 1)) \
+                        .reduceByKey(lambda x, y: x + y)
+    # select the last day
+    selectedreferralPageDay = referralPageDay.filter(lambda x: x[0][0] == stopDate) \
+                                .map(lambda x: (x[0][1], x[0][2], x[1])) 
+    # list top source and target
+    selectedreferralPageDayTarget = selectedreferralPageDay.map(lambda x: (x[0],x[2])) \
+                                        .reduceByKey(lambda x, y: x + y)
+    selectedreferralPageDayTarget = selectedreferralPageDayTarget.sortBy(lambda x: x[1],ascending=False)
+    selectedreferralPageDayTarget = selectedreferralPageDayTarget.take(5)
+    topTarget = sc.broadcast(selectedreferralPageDayTarget)
+
+    selectedreferralPageDaySource = selectedreferralPageDay.map(lambda x: (x[1],x[2])) \
+                                        .reduceByKey(lambda x, y: x + y)
+    selectedreferralPageDaySource = selectedreferralPageDaySource.sortBy(lambda x: x[1],ascending=False)
+    selectedreferralPageDaySource = selectedreferralPageDaySource.take(5)
+    topSource = sc.broadcast(selectedreferralPageDaySource)
+    # filter top source and target
+    referralPageDayFiltered = selectedreferralPageDay.map(lambda x:referralPageFilter(x, topSource, topTarget)) \
+                            .map(lambda x: ((x[0],x[1]), x[2])) \
+                            .reduceByKey(lambda x, y: x + y)
+    referralout = referralPageDayFiltered.collect()
+    # modify the schema of json
+    referralLinks = []
+    referralNodes = []
+    for (x, y) in referralout:
+        referralLinks.append({
+            'source': x[0],
+            'target': x[1],
+            'value': y
+        })
+    for n in selectedreferralPageDaySource:
+        referralNodes.append({
+            "name": n[0]
+        })
+    for n in selectedreferralPageDayTarget:
+        referralNodes.append({
+            "name": n[0]
+        })
+    referralNodes.append({"name": 'other source'})
+    referralNodes.append({"name": 'other target'})
+    referralDict = {"nodes": referralNodes, "links": referralLinks}
+    # save json
+    import json
+    filepath = 'out/referral_path' + stopDate + ".json"
+    with open(filepath, "w") as fout:
+        json.dump(referralDict, fout)
 
     return None
 
