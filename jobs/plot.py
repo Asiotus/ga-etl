@@ -9,6 +9,8 @@ def main():
     plot_hourly_visit_pattern("20160803")
     plot_popular_os("20160803")
     plot_popular_browser("20160803")
+    plot_country_dist("20160803")
+    average_visit_duration("20160803")
     return None
 
 def read(func, date):
@@ -77,6 +79,24 @@ def plot_popular_browser(date):
     ax.set_position([box.x0, box.y0, box.width * 0.7, box.height])
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     directory = os.getcwd()+ "/fig/" + "popular_browser" + date[:-2]
+    plt.savefig(directory)
+    plt.clf()
+    return None
+
+def plot_country_dist(date):
+    df = read("country_dist", date[:-2])
+    pivot_countryPd = df.pivot(index='country', columns='time', values='count')
+    pivot_countryPd.plot.barh(stacked=True, figsize=(7,25))
+    directory = os.getcwd()+ "/fig/" + "country_dist" + date[:-2]
+    plt.savefig(directory)
+    plt.clf()
+    return None
+
+def average_visit_duration(date):
+    df = read("average_visit_duration", date[:-2])
+    df['time'] = pd.to_datetime(df['time'], format='%Y%m%d', errors='coerce')
+    df.plot(x ='time', y='duration', kind = 'line')
+    directory = os.getcwd()+ "/fig/" + "average_visit_duration" + date[:-2]
     plt.savefig(directory)
     plt.clf()
     return None

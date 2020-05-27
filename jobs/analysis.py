@@ -36,6 +36,8 @@ def main():
         hourly_visit_pattern(df, config["stop_date"])
         popular_os(df, config["stop_date"])
         popular_browser(df, config["stop_date"])
+        country_dist(df, config["stop_date"])
+        average_visit_duration(df, config["stop_date"])
 
     return None
 
@@ -132,6 +134,7 @@ def popular_os(df, stopDate):
 
     return None
 
+# popular browser
 def popular_browser(df, stopDate):
     deviceExtracted = df.rdd.map(extract_time_device)
     visitGroupByBrowser = deviceExtracted.map(lambda x: (x[0], x[1][0]))
@@ -145,6 +148,37 @@ def popular_browser(df, stopDate):
     filename = 'out/popular_browser' + stopDate[:-2]
     visitGroupByBrowserD_df = visitGroupByBrowserD.toDF(['time', 'browser', 'count'])
     visitGroupByBrowserD_df.coalesce(1).write.format('csv').options(header='true').save(filename)
+
+    return None
+
+# location
+def extract_country(x):
+    t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
+    return (t.strftime("%Y%m%d"), x['geoNetwork'].country)
+def country_dist(df, stopDate):
+    country = df.rdd.map(extract_country)
+    country = country.map(lambda x: ((x[0],x[1]), 1)) \
+                    .reduceByKey(lambda x, y: x + y)
+    country = country.map(lambda x: (x[0][0], x[0][1], x[1]))
+    # save csv
+    filename = 'out/country_dist' + stopDate[:-2]
+    country_df = country.toDF(['time', 'country', 'count'])
+    country_df.coalesce(1).write.format('csv').options(header='true').save(filename)
+
+    return None
+
+# average visit duration
+def extract_hit_time(x):
+    t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
+    return (t.strftime("%Y%m%d"), (x['hits'][-1].time, 1))
+def average_visit_duration(df, stopDate):
+    duration = df.rdd.map(extract_hit_time).filter(lambda x: x[1][0] != 0)
+    duration = duration.reduceByKey(lambda x, y: (x[0] + y[0], x[1] + y[1])) \
+                    .map(lambda x: (x[0], x[1][0]/1000/x[1][1]))
+    # save csv
+    filename = 'out/average_visit_duration' + stopDate[:-2]
+    duration_df = duration.toDF(['time', 'duration'])
+    duration_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
     return None
 
