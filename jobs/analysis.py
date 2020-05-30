@@ -29,17 +29,26 @@ def main():
     log.warn('***data loaded***')
     # daily tasks
     if config["daily"]:
-        visit_per_hour(df, config["stop_date"])
-        visitor_per_hour(df, config["stop_date"])
+        df_visit_per_hour = visit_per_hour(df, config["stop_date"])
+        save(df_visit_per_hour, 'out/visit_per_hour', config["stop_date"])
+        df_visitor_per_hour = visitor_per_hour(df, config["stop_date"])
+        save(df_visitor_per_hour, 'out/visitor_per_hour', config["stop_date"])
         referral_path(df, sc, config["stop_date"])
+        
     # monthly tasks
     if config["monthly"]:
-        hourly_visit_pattern(df, config["stop_date"])
-        popular_os(df, config["stop_date"])
-        popular_browser(df, config["stop_date"])
-        country_dist(df, config["stop_date"])
-        average_visit_duration(df, config["stop_date"])
-        popular_page(df, config["stop_date"])
+        df_hourly_visit_pattern = hourly_visit_pattern(df, config["stop_date"])
+        save(df_hourly_visit_pattern, 'out/hourly_visit_pattern', config["stop_date"])
+        df_popular_os = popular_os(df, config["stop_date"])
+        save(df_popular_os, 'out/popular_os', config["stop_date"])
+        df_popular_browser = popular_browser(df, config["stop_date"])
+        save(df_popular_browser, 'out/popular_browser', config["stop_date"])
+        df_country_dist = country_dist(df, config["stop_date"])
+        save(df_country_dist, 'out/country_dist', config["stop_date"])
+        df_average_visit_duration = average_visit_duration(df, config["stop_date"])
+        save(df_average_visit_duration, 'out/average_visit_duration', config["stop_date"])
+        df_popular_page = popular_page(df, config["stop_date"])
+        save(df_popular_page, 'out/popular_page', config["stop_date"])
         
 
     return None
@@ -64,7 +73,9 @@ def load(spark, startDate, stopDate, folder):
     .load(selectedDatepaths)
 
     return df
-
+def save(df, path, stopDate):
+    filename = path + stopDate
+    df.coalesce(1).write.format('csv').options(header='true').save(filename)
 # visit per hour
 def extract_visitId_time_hour(x):
         t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
@@ -78,12 +89,10 @@ def visit_per_hour(df, stopDate):
     visitHour = visitGroupByHour.map(lambda x: (x[1], 1))
     visitHour = visitHour.reduceByKey(lambda x, y: x + y)
     visitHour = visitHour.sortByKey(ascending=True)
-    # save csv
-    filename = 'out/visit_per_hour' + stopDate
+    
     visitHour_df = visitHour.toDF(['time', 'visits'])
-    visitHour_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
-    return None
+    return visitHour_df
 
 # visitors per hour
 def visitor_per_hour(df, stopDate):
@@ -95,12 +104,10 @@ def visitor_per_hour(df, stopDate):
     visitorHour = visitGroupByHour.distinct().map(lambda x: (x[1], 1))
     visitorHour = visitorHour.reduceByKey(lambda x, y: x + y)
     visitorHour = visitorHour.sortByKey(ascending=True)
-    # save csv
-    filename = 'out/visitor_per_hour' + stopDate
+    
     visitorHour_df = visitorHour.toDF(['time', 'visitors'])
-    visitorHour_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
-    return None
+    return visitorHour_df
 
 # hourly visit pattern 
 def hourly_visit_pattern(df, stopDate):
@@ -110,12 +117,10 @@ def hourly_visit_pattern(df, stopDate):
     visitPatternHour = visitGroupByHour.map(lambda x: (x[1][-2:], 1))
     visitPatternHour = visitPatternHour.reduceByKey(lambda x, y: x + y)
     visitPatternHour = visitPatternHour.sortByKey(ascending=True)
-    # save csv
-    filename = 'out/hourly_visit_pattern' + stopDate[:-2]
+  
     visitPatternHour_df = visitPatternHour.toDF(['time', 'visits'])
-    visitPatternHour_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
-    return None
+    return visitPatternHour_df
 
 # popular os
 def extract_time_device(x):
@@ -130,12 +135,10 @@ def popular_os(df, stopDate):
                         .reduceByKey(lambda x, y: x + y)
     visitGroupByOSD = visitGroupByOSD.sortByKey(ascending=True)
     visitGroupByOSD = visitGroupByOSD.map(lambda x: (x[0][0], x[0][1], x[1]))
-    # save csv
-    filename = 'out/popular_os' + stopDate[:-2]
-    visitGroupByOSD_df = visitGroupByOSD.toDF(['time', 'os', 'count'])
-    visitGroupByOSD_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
-    return None
+    visitGroupByOSD_df = visitGroupByOSD.toDF(['time', 'os', 'count'])
+
+    return visitGroupByOSD_df
 
 # popular browser
 def popular_browser(df, stopDate):
@@ -147,12 +150,10 @@ def popular_browser(df, stopDate):
                             .reduceByKey(lambda x, y: x + y)
     visitGroupByBrowserD = visitGroupByBrowserD.sortByKey(ascending=True)
     visitGroupByBrowserD = visitGroupByBrowserD.map(lambda x: (x[0][0], x[0][1], x[1]))
-    # save csv
-    filename = 'out/popular_browser' + stopDate[:-2]
+    
     visitGroupByBrowserD_df = visitGroupByBrowserD.toDF(['time', 'browser', 'count'])
-    visitGroupByBrowserD_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
-    return None
+    return visitGroupByBrowserD_df
 
 # location
 def extract_country(x):
@@ -163,12 +164,10 @@ def country_dist(df, stopDate):
     country = country.map(lambda x: ((x[0],x[1]), 1)) \
                     .reduceByKey(lambda x, y: x + y)
     country = country.map(lambda x: (x[0][0], x[0][1], x[1]))
-    # save csv
-    filename = 'out/country_dist' + stopDate[:-2]
+   
     country_df = country.toDF(['time', 'country', 'count'])
-    country_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
-    return None
+    return country_df
 
 # average visit duration
 def extract_hit_time(x):
@@ -178,12 +177,10 @@ def average_visit_duration(df, stopDate):
     duration = df.rdd.map(extract_hit_time).filter(lambda x: x[1][0] != 0)
     duration = duration.reduceByKey(lambda x, y: (x[0] + y[0], x[1] + y[1])) \
                     .map(lambda x: (x[0], x[1][0]/1000/x[1][1]))
-    # save csv
-    filename = 'out/average_visit_duration' + stopDate[:-2]
+    
     duration_df = duration.toDF(['time', 'duration'])
-    duration_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
-    return None
+    return duration_df
 
 # popular page
 def extract_hits(x):
@@ -196,12 +193,10 @@ def popular_page(df, stopDate):
     hitPage = hitPage.map(lambda x: ((x[0][:-2], x[1]), 1)) \
                 .reduceByKey(lambda x, y: x + y)
     hitPage = hitPage.map(lambda x: (x[0][0], x[0][1], x[1]))
-    # save csv
-    filename = 'out/popular_page' + stopDate[:-2]
+    
     hitPage_df = hitPage.toDF(['date', 'pagePath', 'count'])
-    hitPage_df.coalesce(1).write.format('csv').options(header='true').save(filename)
 
-    return None
+    return hitPage_df
 
 # referral path
 def extract_referralPath(x):
