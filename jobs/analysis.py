@@ -1,9 +1,9 @@
-"""    
+""" USAGE:
     spark-submit \
-    --master local[*] \
-    --py-files packages.zip \
-    --files configs/etl_config.json \
-    jobs/analysis.py
+        --master local[*] \
+        --py-files packages.zip \
+        --files configs/etl_config.json \
+        jobs/analysis.py
 """
 
 from dependencies.spark import start_spark
@@ -16,8 +16,6 @@ from pyspark.sql import SQLContext
 
 def main():
     """Main ETL script definition.
-
-    :return: None
     """
     # start Spark application and get Spark session, logger and config
     spark, log, config, sc = start_spark(
@@ -33,7 +31,8 @@ def main():
         save(df_visit_per_hour, 'out/visit_per_hour', config["stop_date"])
         df_visitor_per_hour = visitor_per_hour(df, config["stop_date"])
         save(df_visitor_per_hour, 'out/visitor_per_hour', config["stop_date"])
-        referral_path(df, sc, config["stop_date"])
+        df_referral_path = referral_path(df, sc, config["stop_date"])
+        save_json(df_referral_path, 'out/referral_path', config["stop_date"])
         
     # monthly tasks
     if config["monthly"]:
@@ -49,17 +48,13 @@ def main():
         save(df_average_visit_duration, 'out/average_visit_duration', config["stop_date"])
         df_popular_page = popular_page(df, config["stop_date"])
         save(df_popular_page, 'out/popular_page', config["stop_date"])
-        
-
-    return None
 
 def load(spark, startDate, stopDate, folder):
     import os
-    from os import listdir
     from os.path import isfile, join
     
     directory = os.getcwd()+ "/" + folder
-    fileList = listdir(directory)
+    fileList = os.listdir(directory)
     fileList = [f for f in fileList if 'json' in f]
 
     selectedDate = [f for f in fileList if (f >= 'ga_sessions_'+startDate+'.json' and f <= 'ga_sessions_'+stopDate+'.json')]
@@ -73,13 +68,22 @@ def load(spark, startDate, stopDate, folder):
     .load(selectedDatepaths)
 
     return df
+
 def save(df, path, stopDate):
     filename = path + stopDate
     df.coalesce(1).write.format('csv').options(header='true').save(filename)
+
+def save_json(dictjson, path, stopDate):
+    import json
+    filepath = path + stopDate + ".json"
+    with open(filepath, "w") as fout:
+        json.dump(dictjson, fout)
+
 # visit per hour
 def extract_visitId_time_hour(x):
         t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
         return (x['fullVisitorId'], t.strftime("%Y%m%d%H"))
+
 def visit_per_hour(df, stopDate):  
     # group by hour 
     visitGroupByHour = df.rdd.map(extract_visitId_time_hour)
@@ -159,6 +163,7 @@ def popular_browser(df, stopDate):
 def extract_country(x):
     t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
     return (t.strftime("%Y%m%d"), x['geoNetwork'].country)
+
 def country_dist(df, stopDate):
     country = df.rdd.map(extract_country)
     country = country.map(lambda x: ((x[0],x[1]), 1)) \
@@ -173,6 +178,7 @@ def country_dist(df, stopDate):
 def extract_hit_time(x):
     t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
     return (t.strftime("%Y%m%d"), (x['hits'][-1].time, 1))
+
 def average_visit_duration(df, stopDate):
     duration = df.rdd.map(extract_hit_time).filter(lambda x: x[1][0] != 0)
     duration = duration.reduceByKey(lambda x, y: (x[0] + y[0], x[1] + y[1])) \
@@ -186,6 +192,7 @@ def average_visit_duration(df, stopDate):
 def extract_hits(x):
     t = datetime.fromtimestamp(x["visitStartTime"], pytz.timezone("US/Pacific"))
     return (t.strftime("%Y%m%d%H"), (x['hits']))
+
 def popular_page(df, stopDate):
     hitPage = df.rdd.map(extract_hits)
     hitPage = hitPage.flatMap(lambda x: [(x[0], h.page.pagePath) for h in x[1]])
@@ -206,6 +213,7 @@ def extract_referralPath(x):
     else:
         s = str(x['trafficSource'].source)
     return (t.strftime("%Y%m%d"), x['hits'][0].page.pagePath, s)
+
 def referralPageFilter(x, topSource, topTarget):
     isIn = False;
     for s in topSource.value:
@@ -224,6 +232,7 @@ def referralPageFilter(x, topSource, topTarget):
     if not isIn:
         ot = 'other target'
     return (os, ot, x[2])
+
 def referral_path(df, sc, stopDate):
     referralPage = df.rdd.map(extract_referralPath)
     referralPageDay = referralPage.map(lambda x: ((x[0], x[1], x[2]), 1)) \
@@ -269,12 +278,7 @@ def referral_path(df, sc, stopDate):
     referralNodes.append({"name": 'other target'})
     referralDict = {"nodes": referralNodes, "links": referralLinks}
     # save json
-    import json
-    filepath = 'out/referral_path' + stopDate + ".json"
-    with open(filepath, "w") as fout:
-        json.dump(referralDict, fout)
-
-    return None
+    return referralDict
 
 
 if __name__ == '__main__': 

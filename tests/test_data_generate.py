@@ -2,6 +2,7 @@ import json
 
 def main():
     date = "20160803"
+    # date can be modified
 
     openfilepath = 'data/ga_sessions_'+date+'.json'
     filepath = 'out/test' + date + ".json"
@@ -16,10 +17,6 @@ def main():
                     i = -1
                 i = i+1
 
-
-     
-    # with open(filepath, "w") as fout:
-    #     json.dump(outdict, fout)
     return None
 if __name__ == '__main__': 
     main()

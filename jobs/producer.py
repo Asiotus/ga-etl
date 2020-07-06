@@ -1,10 +1,10 @@
 import json
-from kafka import KafkaProducer
-
 import os
-from os import listdir
 from os.path import isfile, join
 from time import sleep
+
+from kafka import KafkaProducer
+
 
 def main():
     # read lines from data
@@ -12,7 +12,7 @@ def main():
     stopDate = "20160807"
     folder = "data/"
     directory = os.getcwd()+ "/" + folder
-    fileList = listdir(directory)
+    fileList = os.listdir(directory)
     fileList = [f for f in fileList if 'json' in f]
 
     selectedDate = [f for f in fileList if (f >= 'ga_sessions_'+startDate+'.json' and f <= 'ga_sessions_'+stopDate+'.json')]
@@ -30,7 +30,7 @@ def main():
         line = f.readline()
         line_json = json.loads(line)
         time = line_json["visitStartTime"]
-        producer.send("numtest", value=line, timestamp_ms=time)
+        producer.send("topic1", value=line, timestamp_ms=time)
         print(time)
 
 if __name__ == '__main__': 

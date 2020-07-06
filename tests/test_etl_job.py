@@ -19,14 +19,17 @@ from jobs.analysis import *
 from pandas.testing import assert_frame_equal
 
 def read_pd_csv(path, folder, func, stop_date):
-    # path = self.test_data_path
-    # func = visit_per_hour
-    # folder = exp
-    # stop_date = self.config["stop_date"]
     filepath = path + folder + '/' + func 
     fileList = listdir(filepath + stop_date)
     filename = [f for f in fileList if f.endswith('csv')]
     return pd.read_csv(filepath + stop_date + "/" + filename[0])
+
+def read_json(path, stop_date):
+    import json
+    filepath = path + "referral_path" + stop_date + ".json"
+    with open (filepath, 'r') as fin:
+        dictjson = json.load(fin)
+    return dictjson
 
 def assert_frame_equal_with_sort(results, expected, keycolumns):
     results_sorted = results.sort_values(by=keycolumns).reset_index(drop=True)
@@ -46,7 +49,7 @@ class SparkETLTests(unittest.TestCase):
                                 "monthly": true,
                                 "folder": "tests/test_data/"
                                 }""")
-        self.spark, _, _, sc = start_spark()
+        self.spark, _, _, self.sc = start_spark()
         self.test_data_path = self.config["folder"]
         self.input_data = load(self.spark, self.config["start_date"], self.config["stop_date"], self.test_data_path + "ga/")
 
@@ -110,7 +113,13 @@ class SparkETLTests(unittest.TestCase):
         save(out_popular_page, self.test_data_path + 'out/popular_page', self.config["stop_date"])
         out_popular_page = read_pd_csv(self.test_data_path, "out", "popular_page", self.config["stop_date"])
         assert_frame_equal_with_sort(out_popular_page, expected_popular_page, 'date')
-
+        
+    def test_referral_path(self):
+        expected_referral_path = read_json("tests/test_data/exp/", self.config["stop_date"])
+        out_referral_path = referral_path(self.input_data, self.sc, self.config["stop_date"])
+        expected_json = json.dumps(expected_referral_path, sort_keys=True)
+        out_json = json.dumps(out_referral_path, sort_keys=True)
+        self.assertEqual(expected_json, out_json)
 
 if __name__ == '__main__':
     unittest.main()

@@ -4,16 +4,16 @@ import matplotlib.pyplot as plt
 import os
 
 def main():
-    plot_visit_per_hour("20160803")
-    plot_visitor_per_hour("20160803")
-    plot_hourly_visit_pattern("20160803")
-    plot_popular_os("20160803")
-    plot_popular_browser("20160803")
-    plot_country_dist("20160803")
-    plot_average_visit_duration("20160803")
-    top_popular_page("20160803")
-    plot_referral_path("20160803")
-    return None
+    date = "20160807"
+    plot_visit_per_hour(date)
+    plot_visitor_per_hour(date)
+    plot_hourly_visit_pattern(date)
+    plot_popular_os(date)
+    plot_popular_browser(date)
+    plot_country_dist(date)
+    plot_average_visit_duration(date)
+    top_popular_page(date)
+    plot_referral_path(date)
 
 def read(func, date):
     from os import listdir
@@ -32,7 +32,6 @@ def plot_visit_per_hour(date):
     directory = os.getcwd()+ "/fig/" + "visit_per_hour" + date
     plt.savefig(directory)
     plt.clf()
-    return None
 
 def plot_visitor_per_hour(date):
     df = read("visitor_per_hour", date)
@@ -41,7 +40,6 @@ def plot_visitor_per_hour(date):
     directory = os.getcwd()+ "/fig/" + "visitor_per_hour" + date
     plt.savefig(directory)
     plt.clf()
-    return None
 
 def plot_hourly_visit_pattern(date):
     df = read("hourly_visit_pattern", date[:-2])
@@ -49,7 +47,6 @@ def plot_hourly_visit_pattern(date):
     directory = os.getcwd()+ "/fig/" + "hourly_visit_pattern" + date[:-2]
     plt.savefig(directory)
     plt.clf()
-    return None
 
 def plot_popular_os(date):
     df = read("popular_os", date[:-2])
@@ -66,7 +63,6 @@ def plot_popular_os(date):
     directory = os.getcwd()+ "/fig/" + "popular_os" + date[:-2]
     plt.savefig(directory)
     plt.clf()
-    return None
 
 def plot_popular_browser(date):
     df = read("popular_browser", date[:-2])
@@ -83,7 +79,6 @@ def plot_popular_browser(date):
     directory = os.getcwd()+ "/fig/" + "popular_browser" + date[:-2]
     plt.savefig(directory)
     plt.clf()
-    return None
 
 def plot_country_dist(date):
     df = read("country_dist", date[:-2])
@@ -92,7 +87,6 @@ def plot_country_dist(date):
     directory = os.getcwd()+ "/fig/" + "country_dist" + date[:-2]
     plt.savefig(directory)
     plt.clf()
-    return None
 
 def plot_average_visit_duration(date):
     df = read("average_visit_duration", date[:-2])
@@ -101,7 +95,6 @@ def plot_average_visit_duration(date):
     directory = os.getcwd()+ "/fig/" + "average_visit_duration" + date[:-2]
     plt.savefig(directory)
     plt.clf()
-    return None
 
 def top_popular_page(date):
     hitPagePd = read("popular_page", date[:-2])
@@ -118,7 +111,6 @@ def top_popular_page(date):
         pageDailyRank = pageDailyRank.append(top10)
     directory = os.getcwd()+ "/fig/" + "top_popular_page" + date[:-2] + ".csv"
     pageDailyRank.to_csv(directory)
-    return None
 
 def plot_referral_path(date):
     import json
@@ -128,7 +120,8 @@ def plot_referral_path(date):
  
     import pyecharts.options as opts
     from pyecharts.charts import Sankey
-    plottitle = "top referral pages" + date
+    plottitle = "top_referral_pages" + date
+    plotpath = "fig/top_referral_pages" + date + ".html"
     Sankey() \
     .add(
         "sankey",
@@ -138,7 +131,7 @@ def plot_referral_path(date):
         label_opts=opts.LabelOpts(position="right"),
     ) \
     .set_global_opts(title_opts=opts.TitleOpts(title=plottitle)) \
-    .render("fig/top_referral_pages.html")
+    .render(plotpath)
 
 if __name__ == "__main__":
     main()
