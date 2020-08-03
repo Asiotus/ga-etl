@@ -3,6 +3,7 @@
 metastore_db/
 out/
 ._*
+*.ipynb
 .ipynb_checkpoints/
 kafka_out/
 kafka_check/
@@ -10,4 +11,6 @@ pyspark/
 __pycache__
 bin/
 share/
+data/
+data_unsorted/
 *.pyc
